@@ -5,12 +5,16 @@ namespace TMKOC.CoinHunt
 {
     public class GameManager : MonoBehaviour
     {
-        [SerializeField] private LevelManager levelManager;     
+        [SerializeField] private LevelManager levelManager;
+        [SerializeField] private UIManager uiManager;
+        [SerializeField] private JethalalController jethalalController;
         private static GameManager instance;
 
 
         public static GameManager Instance { get { return instance; } }
         public LevelManager LevelManager { get { return levelManager; } }
+        public UIManager UIManager { get { return uiManager; } }
+        public JethalalController JethalalController { get { return jethalalController; } }
      
       
         private void Awake()
