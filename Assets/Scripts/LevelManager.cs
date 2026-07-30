@@ -22,6 +22,8 @@ namespace TMKOC.CoinHunt
         [SerializeField] private Vector2 spawnIntervalRange = new Vector2(0.6f, 1.2f);
         [SerializeField] private int maxActiveCoins = 8;
         [SerializeField, Range(0f, 1f)] private float rupeeSpawnChance = 0.35f;
+        [SerializeField] private float minCoinSpacing = 160f;
+        [SerializeField] private int maxSpawnPositionAttempts = 10;
 
         private readonly List<GameObject> activeCoins = new List<GameObject>();
         private Coroutine spawnRoutine;
@@ -107,7 +109,21 @@ namespace TMKOC.CoinHunt
         }
         private void SpawnCoin()
         {
-            CoinType type = GetRandomCoinType();
+            if (!TryGetSpawnPosition(out Vector2 position)) return;
+            SpawnCoinAt(position, GetRandomCoinType());
+        }
+        // A stale coin expired: replace it at the same spot with a different type so the board stays full.
+        private void HandleCoinExpired(CoinController expiredCoin)
+        {
+            expiredCoin.OnExpired -= HandleCoinExpired;
+            Vector2 position = expiredCoin.GetComponent<RectTransform>().anchoredPosition;
+            CoinType replacementType = GetRandomCoinType(expiredCoin.CoinType);
+
+            activeCoins.Remove(expiredCoin.gameObject);
+            SpawnCoinAt(position, replacementType);
+        }
+        private void SpawnCoinAt(Vector2 position, CoinType type)
+        {
             Sprite sprite = GetSpriteFor(type);
             if (sprite == null)
             {
@@ -118,11 +134,12 @@ namespace TMKOC.CoinHunt
 
             GameObject coinObject = Instantiate(coinPrefab, coinParent != null ? coinParent : coinSpawnArea);
             RectTransform coinRect = coinObject.GetComponent<RectTransform>();
-            if (coinRect != null) coinRect.anchoredPosition = GetRandomPointInSpawnArea();
+            if (coinRect != null) coinRect.anchoredPosition = position;
 
             CoinController controller = coinObject.GetComponent<CoinController>();
             controller.Setup(type, sprite);
             controller.PlaySpawnAnimation();
+            controller.OnExpired += HandleCoinExpired;
 
             activeCoins.Add(coinObject);
         }
@@ -133,6 +150,15 @@ namespace TMKOC.CoinHunt
             CoinType[] nonRupeeTypes = { CoinType.Dollar, CoinType.Euro, CoinType.Pound, CoinType.Yen };
             return nonRupeeTypes[UnityEngine.Random.Range(0, nonRupeeTypes.Length)];
         }
+        private CoinType GetRandomCoinType(CoinType excludeType)
+        {
+            CoinType type;
+            do
+            {
+                type = GetRandomCoinType();
+            } while (type == excludeType);
+            return type;
+        }
         private Sprite GetSpriteFor(CoinType type)
         {
             foreach (CoinSpriteMapping mapping in coinSprites)
@@ -140,6 +166,32 @@ namespace TMKOC.CoinHunt
                 if (mapping.type == type) return mapping.sprite;
             }
             return null;
+        }
+        // Picks a random point in the spawn area that isn't within minCoinSpacing of an existing coin.
+        // Returns false if no clear spot was found within maxSpawnPositionAttempts (board is too full right now).
+        private bool TryGetSpawnPosition(out Vector2 position)
+        {
+            for (int attempt = 0; attempt < maxSpawnPositionAttempts; attempt++)
+            {
+                Vector2 candidate = GetRandomPointInSpawnArea();
+                if (IsPositionClear(candidate))
+                {
+                    position = candidate;
+                    return true;
+                }
+            }
+            position = Vector2.zero;
+            return false;
+        }
+        private bool IsPositionClear(Vector2 candidate)
+        {
+            foreach (GameObject coin in activeCoins)
+            {
+                if (coin == null) continue;
+                RectTransform coinRect = coin.GetComponent<RectTransform>();
+                if (coinRect != null && Vector2.Distance(coinRect.anchoredPosition, candidate) < minCoinSpacing) return false;
+            }
+            return true;
         }
         private Vector2 GetRandomPointInSpawnArea()
         {

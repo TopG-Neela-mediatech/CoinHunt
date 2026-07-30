@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using DG.Tweening;
 using UnityEngine;
 using UnityEngine.UI;
@@ -22,10 +24,18 @@ namespace TMKOC.CoinHunt
         [SerializeField] private float shakeDuration = 0.3f;
         [SerializeField] private float shakeStrength = 12f;
 
+        [Header("Lifetime")]
+        [SerializeField] private float lifetimeDuration = 6f;
+        [SerializeField] private float expireDuration = 0.25f;
+
         private CoinType coinType;
-        private bool isCollected;
+        private bool isConsumed;
+        private Coroutine lifetimeRoutine;
 
         public CoinType CoinType => coinType;
+
+        // Raised when this coin times out uncollected, so LevelManager can remove it and spawn a replacement.
+        public event Action<CoinController> OnExpired;
 
         private void Awake()
         {
@@ -37,9 +47,30 @@ namespace TMKOC.CoinHunt
         public void Setup(CoinType type, Sprite sprite)
         {
             coinType = type;
-            isCollected = false;
+            isConsumed = false;
             coinButton.interactable = true;
             if (coinImage != null) coinImage.sprite = sprite;
+
+            if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
+            lifetimeRoutine = StartCoroutine(LifetimeRoutine());
+        }
+
+        private IEnumerator LifetimeRoutine()
+        {
+            yield return new WaitForSeconds(lifetimeDuration);
+            Expire();
+        }
+
+        private void Expire()
+        {
+            if (isConsumed) return;
+            isConsumed = true;
+            coinButton.interactable = false;
+
+            OnExpired?.Invoke(this);
+
+            transform.DOKill();
+            transform.DOScale(0f, expireDuration).SetEase(Ease.InBack).OnComplete(() => Destroy(gameObject));
         }
 
         public void PlaySpawnAnimation()
@@ -50,7 +81,7 @@ namespace TMKOC.CoinHunt
 
         private void OnCoinClicked()
         {
-            if (isCollected) return;
+            if (isConsumed) return;
 
             if (coinType == CoinType.Rupee) Collect();
             else PlayIncorrectFeedback();
@@ -58,8 +89,9 @@ namespace TMKOC.CoinHunt
 
         private void Collect()
         {
-            isCollected = true;
+            isConsumed = true;
             coinButton.interactable = false;
+            if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
 
            // PlaySfx(correctCoinClip);
             if (GameManager.Instance.UIManager == null)
@@ -78,10 +110,11 @@ namespace TMKOC.CoinHunt
         // Returns false if the coin is no longer available or isn't a rupee, so the caller can try another.
         public bool TryJethalalCollect()
         {
-            if (isCollected || coinType != CoinType.Rupee) return false;
+            if (isConsumed || coinType != CoinType.Rupee) return false;
 
-            isCollected = true;
+            isConsumed = true;
             coinButton.interactable = false;
+            if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
 
             if (GameManager.Instance.UIManager == null)
                 Debug.LogWarning("CoinController: GameManager's UIManager reference is not assigned — Jethalal's score will not update.");
