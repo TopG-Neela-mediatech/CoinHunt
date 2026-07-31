@@ -36,6 +36,8 @@ namespace TMKOC.CoinHunt
 
         // Raised when this coin times out uncollected, so LevelManager can remove it and spawn a replacement.
         public event Action<CoinController> OnExpired;
+        // Raised once this coin's lifecycle (collect/expire animation) is fully finished, so LevelManager can pool it instead of destroying it.
+        public event Action<CoinController> OnReleased;
 
         private void Awake()
         {
@@ -70,7 +72,22 @@ namespace TMKOC.CoinHunt
             OnExpired?.Invoke(this);
 
             transform.DOKill();
-            transform.DOScale(0f, expireDuration).SetEase(Ease.InBack).OnComplete(() => Destroy(gameObject));
+            transform.DOScale(0f, expireDuration).SetEase(Ease.InBack).OnComplete(Release);
+        }
+
+        // Immediately hands this coin back to the pool, skipping any in-progress animation.
+        // Used when the level ends so leftover coins don't leave dangling tweens behind.
+        public void ForceRelease()
+        {
+            if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
+            transform.DOKill();
+            isConsumed = true;
+            Release();
+        }
+
+        private void Release()
+        {
+            OnReleased?.Invoke(this);
         }
 
         public void PlaySpawnAnimation()
@@ -134,7 +151,7 @@ namespace TMKOC.CoinHunt
             collectSequence.Append(transform.DOScale(1.15f, 0.1f));
             collectSequence.Append(transform.DOMove(targetPosition, collectDuration).SetEase(Ease.InBack));
             collectSequence.Join(transform.DOScale(0f, collectDuration).SetEase(Ease.InBack));
-            collectSequence.OnComplete(() => Destroy(gameObject));
+            collectSequence.OnComplete(Release);
         }
 
         private void PlayIncorrectFeedback()

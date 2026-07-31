@@ -24,8 +24,9 @@ namespace TMKOC.CoinHunt
         [SerializeField, Range(0f, 1f)] private float rupeeSpawnChance = 0.35f;
         [SerializeField] private float minCoinSpacing = 160f;
         [SerializeField] private int maxSpawnPositionAttempts = 10;
-
+        private bool isStoryPlayed;
         private readonly List<GameObject> activeCoins = new List<GameObject>();
+        private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
 
         [Serializable]
@@ -39,29 +40,32 @@ namespace TMKOC.CoinHunt
 
 
         private void Awake()
-        {                    
+        {
             playSchoolBackButton.onClick.AddListener(() => SceneManager.LoadScene(TMKOCPlaySchoolConstants.TMKOCPlayMainMenu));
         }
         private void Start()
         {
+            isStoryPlayed = false;
             GameManager.Instance.OnLevelStart += OnLevelStart;
             GameManager.Instance.OnLevelWin += OnLevelWin;
             if (sc != null)
             {
                 sc.OnStoryFinished += OnStoryFinished;
             }
-            StartCoroutine(StartLevelNextFrame());
+            StartStory();
         }
-        private IEnumerator StartLevelNextFrame()
+        private void StartStory()
         {
-            // Unity doesn't guarantee Start() order across scripts, so firing here
-            // ensures UIManager/JethalalController have already subscribed in their own Start().
-            yield return null;
-            StartLevel();
+            if (!isStoryPlayed && sc != null)
+            {
+                isStoryPlayed = true;
+                storyPrefab.SetActive(true);
+            }
         }
         private void OnStoryFinished()
         {
-            storyPrefab.SetActive(false);         
+            storyPrefab.SetActive(false);
+            StartLevel();
         }
         private void OnLevelStart()
         {
@@ -72,9 +76,11 @@ namespace TMKOC.CoinHunt
             if (spawnRoutine != null) StopCoroutine(spawnRoutine);
             spawnRoutine = null;
 
-            foreach (GameObject coin in activeCoins)
+            foreach (GameObject coin in activeCoins.ToArray())
             {
-                if (coin != null) Destroy(coin);
+                if (coin == null) continue;
+                CoinController controller = coin.GetComponent<CoinController>();
+                if (controller != null) controller.ForceRelease();
             }
             activeCoins.Clear();
         }
@@ -113,14 +119,22 @@ namespace TMKOC.CoinHunt
             SpawnCoinAt(position, GetRandomCoinType());
         }
         // A stale coin expired: replace it at the same spot with a different type so the board stays full.
+        // Note: the expired coin removes itself from activeCoins via HandleCoinReleased once its despawn animation finishes.
         private void HandleCoinExpired(CoinController expiredCoin)
         {
-            expiredCoin.OnExpired -= HandleCoinExpired;
             Vector2 position = expiredCoin.GetComponent<RectTransform>().anchoredPosition;
             CoinType replacementType = GetRandomCoinType(expiredCoin.CoinType);
 
             activeCoins.Remove(expiredCoin.gameObject);
             SpawnCoinAt(position, replacementType);
+        }
+        // Coin finished being collected/expired/force-released: hand it back to the pool instead of destroying it,
+        // which avoids DOTween trying to touch a destroyed RectTransform after the level ends.
+        private void HandleCoinReleased(CoinController releasedCoin)
+        {
+            activeCoins.Remove(releasedCoin.gameObject);
+            releasedCoin.gameObject.SetActive(false);
+            coinPool.Enqueue(releasedCoin.gameObject);
         }
         private void SpawnCoinAt(Vector2 position, CoinType type)
         {
@@ -132,16 +146,33 @@ namespace TMKOC.CoinHunt
             }
             if (coinPrefab == null || coinSpawnArea == null) return;
 
-            GameObject coinObject = Instantiate(coinPrefab, coinParent != null ? coinParent : coinSpawnArea);
+            GameObject coinObject = GetCoinFromPool();
+            coinObject.SetActive(true);
+
             RectTransform coinRect = coinObject.GetComponent<RectTransform>();
             if (coinRect != null) coinRect.anchoredPosition = position;
 
             CoinController controller = coinObject.GetComponent<CoinController>();
             controller.Setup(type, sprite);
             controller.PlaySpawnAnimation();
-            controller.OnExpired += HandleCoinExpired;
 
             activeCoins.Add(coinObject);
+        }
+        // Reuses a pooled coin GameObject if one is available; otherwise instantiates a fresh one
+        // (subscribing its events exactly once, since the subscription persists across reuse).
+        private GameObject GetCoinFromPool()
+        {
+            while (coinPool.Count > 0)
+            {
+                GameObject pooledCoin = coinPool.Dequeue();
+                if (pooledCoin != null) return pooledCoin;
+            }
+
+            GameObject newCoin = Instantiate(coinPrefab, coinParent != null ? coinParent : coinSpawnArea);
+            CoinController newController = newCoin.GetComponent<CoinController>();
+            newController.OnExpired += HandleCoinExpired;
+            newController.OnReleased += HandleCoinReleased;
+            return newCoin;
         }
         private CoinType GetRandomCoinType()
         {
@@ -202,7 +233,7 @@ namespace TMKOC.CoinHunt
         {
             yield return new WaitForSeconds(delay);
         }
-     
+
         private void OnDestroy()
         {
             GameManager.Instance.OnLevelStart -= OnLevelStart;

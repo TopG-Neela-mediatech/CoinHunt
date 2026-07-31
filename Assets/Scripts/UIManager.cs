@@ -80,6 +80,10 @@ namespace TMKOC.CoinHunt
 
         private void EndLevel()
         {
+            if (playerScore > jethalalScore) Debug.Log("Player won");
+            else if (playerScore < jethalalScore) Debug.Log("Player lost");
+            else Debug.Log("Draw");
+
             GameManager.Instance.InvokeLevelWin();
         }
 
