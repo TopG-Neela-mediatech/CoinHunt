@@ -102,7 +102,12 @@ namespace TMKOC.CoinHunt
 
         private void UpdateTimerText()
         {
-            if (timerText != null) timerText.text = Mathf.CeilToInt(remainingTime).ToString();
+            if (timerText == null) return;
+
+            int totalSeconds = Mathf.CeilToInt(remainingTime);
+            int minutes = totalSeconds / 60;
+            int seconds = totalSeconds % 60;
+            timerText.text = $"{minutes:00}:{seconds:00}";
         }
     }
 }
