@@ -58,7 +58,7 @@ namespace TMKOC.CoinHunt
                     continue;
                 }
 
-                bool collected = GameManager.Instance.LevelManager.TryCollectRandomRupeeCoinForJethalal();
+                bool collected = GameManager.Instance.LevelManager.TryCollectRandomTargetCoinForJethalal();
                 if (collected) PlayCollectReaction();
             }
         }

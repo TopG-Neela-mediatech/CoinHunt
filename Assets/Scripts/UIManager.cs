@@ -1,6 +1,8 @@
 using DG.Tweening;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 namespace TMKOC.CoinHunt
 {
@@ -9,15 +11,20 @@ namespace TMKOC.CoinHunt
         [Header("Score")]
         [SerializeField] private TextMeshProUGUI playerScoreText;
         [SerializeField] private TextMeshProUGUI jethalalScoreText;
-        [SerializeField] private RectTransform playerCollectionPoint;
-        [SerializeField] private RectTransform jethalalCollectionPoint;
+        [FormerlySerializedAs("playerCollectionPoint")]
+        [SerializeField] private RectTransform playerPiggyBank;
+        [FormerlySerializedAs("jethalalCollectionPoint")]
+        [SerializeField] private RectTransform jethalalPiggyBank;
+
+        [Header("Target Indicator")]
+        [SerializeField] private Image targetIndicatorImage;
 
         [Header("Timer")]
         [SerializeField] private TextMeshProUGUI timerText;
         [SerializeField] private float levelDuration = 60f;
 
-        public RectTransform PlayerCollectionPoint => playerCollectionPoint;
-        public RectTransform JethalalCollectionPoint => jethalalCollectionPoint;
+        public RectTransform PlayerPiggyBank => playerPiggyBank;
+        public RectTransform JethalalPiggyBank => jethalalPiggyBank;
 
         private int playerScore;
         private int jethalalScore;
@@ -78,11 +85,31 @@ namespace TMKOC.CoinHunt
             PunchScore(jethalalScoreText);
         }
 
+        // Called by LevelManager whenever the coin type to look for changes.
+        public void SetTargetIndicator(Sprite sprite)
+        {
+            if (targetIndicatorImage == null) return;
+            targetIndicatorImage.sprite = sprite;
+            targetIndicatorImage.transform.DOKill();
+            targetIndicatorImage.transform.DOPunchScale(Vector3.one * 0.2f, 0.3f, vibrato: 1, elasticity: 0.6f);
+        }
+
+        // Called by CoinController once a collected coin's fly-to animation finishes arriving at the piggy bank.
+        public void BouncePlayerPiggyBank() => BouncePiggyBank(playerPiggyBank);
+        public void BounceJethalalPiggyBank() => BouncePiggyBank(jethalalPiggyBank);
+
+        private void BouncePiggyBank(RectTransform piggyBank)
+        {
+            if (piggyBank == null) return;
+            piggyBank.DOKill();
+            piggyBank.DOPunchScale(Vector3.one * 0.15f, 0.3f, vibrato: 1, elasticity: 0.6f);
+        }
+
         private void EndLevel()
         {
-            if (playerScore > jethalalScore) Debug.Log("Player won");
-            else if (playerScore < jethalalScore) Debug.Log("Player lost");
-            else Debug.Log("Draw");
+            // Ties go to the player — there's no draw outcome, only win or lose.
+            if (playerScore >= jethalalScore) Debug.Log("Player won");
+            else Debug.Log("Player lost");
 
             GameManager.Instance.InvokeLevelWin();
         }

@@ -20,14 +20,23 @@ namespace TMKOC.CoinHunt
         [SerializeField] private RectTransform coinSpawnArea;
         [SerializeField] private Transform coinParent;
         [SerializeField] private Vector2 spawnIntervalRange = new Vector2(0.6f, 1.2f);
-        [SerializeField] private int maxActiveCoins = 8;
+        [SerializeField] private int maxActiveCoins = 5;
         [SerializeField, Range(0f, 1f)] private float rupeeSpawnChance = 0.35f;
-        [SerializeField] private float minCoinSpacing = 160f;
+        // Coin prefab's on-screen size, used both to keep spawn positions fully inside coinSpawnArea
+        // and as the basis for minCoinSpacing below (must exceed this or coins will visually overlap).
+        [SerializeField] private Vector2 coinSize = new Vector2(200f, 200f);
+        [SerializeField] private float minCoinSpacing = 240f;
         [SerializeField] private int maxSpawnPositionAttempts = 10;
+        [SerializeField] private float expiredCoinRespawnDelay = 0.4f;
+        [SerializeField] private float targetPresenceCheckInterval = 1f;
         private bool isStoryPlayed;
         private readonly List<GameObject> activeCoins = new List<GameObject>();
         private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
+        private Coroutine targetWatchdogRoutine;
+
+        // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
+        public CoinType CurrentTargetType { get; private set; }
 
         [Serializable]
         private struct CoinSpriteMapping
@@ -69,12 +78,17 @@ namespace TMKOC.CoinHunt
         }
         private void OnLevelStart()
         {
+            CurrentTargetType = GetRandomCoinType();
+            UpdateTargetIndicator();
             spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
+            targetWatchdogRoutine = StartCoroutine(TargetPresenceWatchdog());
         }
         private void OnLevelWin()
         {
             if (spawnRoutine != null) StopCoroutine(spawnRoutine);
             spawnRoutine = null;
+            if (targetWatchdogRoutine != null) StopCoroutine(targetWatchdogRoutine);
+            targetWatchdogRoutine = null;
 
             foreach (GameObject coin in activeCoins.ToArray())
             {
@@ -85,23 +99,85 @@ namespace TMKOC.CoinHunt
             activeCoins.Clear();
         }
         // Called by JethalalController so he competes for the same coins on screen instead of scoring independently.
-        // Returns false (and Jethalal scores nothing) if no rupee coin is currently spawned.
-        public bool TryCollectRandomRupeeCoinForJethalal()
+        // Returns false (and Jethalal scores nothing) if no eligible target-type coin is currently spawned.
+        public bool TryCollectRandomTargetCoinForJethalal()
         {
             activeCoins.RemoveAll(coin => coin == null);
 
-            List<CoinController> rupeeCoins = new List<CoinController>();
+            List<CoinController> targetCoins = new List<CoinController>();
             foreach (GameObject coin in activeCoins)
             {
                 CoinController controller = coin.GetComponent<CoinController>();
-                if (controller != null && controller.CoinType == CoinType.Rupee) rupeeCoins.Add(controller);
+                // Skip coins still in their grace period so Jethalal can't snipe a coin the instant it spawns.
+                if (controller != null && controller.CoinType == CurrentTargetType && controller.IsEligibleForJethalal) targetCoins.Add(controller);
             }
 
-            if (rupeeCoins.Count == 0) return false;
+            if (targetCoins.Count == 0) return false;
 
-            CoinController chosen = rupeeCoins[UnityEngine.Random.Range(0, rupeeCoins.Count)];
+            CoinController chosen = targetCoins[UnityEngine.Random.Range(0, targetCoins.Count)];
             return chosen.TryJethalalCollect();
         }
+        // Called by CoinController once a target-type coin's collect animation finishes, so the indicator
+        // rotates to a different currency.
+        public void OnTargetCollected()
+        {
+            RetargetToPresentType();
+        }
+        // Safety net: if the current target's last coin expires (rather than gets collected), or the initial
+        // random pick at level start doesn't match anything spawned yet, nothing else would ever re-check —
+        // so poll periodically and retarget the instant the current target is no longer on screen at all.
+        private IEnumerator TargetPresenceWatchdog()
+        {
+            while (true)
+            {
+                yield return new WaitForSeconds(targetPresenceCheckInterval);
+                if (!IsTargetTypePresent()) RetargetToPresentType();
+            }
+        }
+        private bool IsTargetTypePresent()
+        {
+            foreach (GameObject coin in activeCoins)
+            {
+                if (coin == null) continue;
+                CoinController controller = coin.GetComponent<CoinController>();
+                if (controller != null && controller.CoinType == CurrentTargetType) return true;
+            }
+            return false;
+        }
+        // Picks a new target type, preferring one actually present among activeCoins right now so the
+        // indicator never points at a currency that isn't on screen. Falls back to any different random
+        // type only when nothing else is currently spawned at all.
+        private void RetargetToPresentType()
+        {
+            List<CoinType> presentTypes = new List<CoinType>();
+            foreach (GameObject coin in activeCoins)
+            {
+                if (coin == null) continue;
+                CoinController controller = coin.GetComponent<CoinController>();
+                if (controller != null && controller.CoinType != CurrentTargetType && !presentTypes.Contains(controller.CoinType))
+                    presentTypes.Add(controller.CoinType);
+            }
+
+            CurrentTargetType = presentTypes.Count > 0
+                ? presentTypes[UnityEngine.Random.Range(0, presentTypes.Count)]
+                : GetRandomCoinType(CurrentTargetType);
+
+            UpdateTargetIndicator();
+        }
+        private void UpdateTargetIndicator()
+        {
+            Sprite sprite = GetSpriteFor(CurrentTargetType);
+            if (sprite == null)
+            {
+                Debug.LogWarning($"LevelManager: no sprite mapped for CoinType.{CurrentTargetType} — target indicator won't update.");
+                return;
+            }
+            if (GameManager.Instance.UIManager == null)
+                Debug.LogWarning("LevelManager: GameManager's UIManager reference is not assigned — target indicator will not update.");
+            GameManager.Instance.UIManager?.SetTargetIndicator(sprite);
+        }
+      
+     
         private IEnumerator SpawnCoinsRoutine()
         {
             while (true)
@@ -124,9 +200,23 @@ namespace TMKOC.CoinHunt
         {
             Vector2 position = expiredCoin.GetComponent<RectTransform>().anchoredPosition;
             CoinType replacementType = GetRandomCoinType(expiredCoin.CoinType);
+            bool wasLastTargetCoin = expiredCoin.CoinType == CurrentTargetType;
 
             activeCoins.Remove(expiredCoin.gameObject);
-            SpawnCoinAt(position, replacementType);
+
+            // Don't leave the indicator pointing at a currency that just timed out with none left on screen —
+            // retarget immediately instead of waiting on the watchdog's next tick.
+            if (wasLastTargetCoin && !IsTargetTypePresent()) RetargetToPresentType();
+
+            // Wait a beat instead of spawning the replacement the instant the old coin starts its despawn
+            // animation, so the new one doesn't pop in right on top of the one still shrinking away.
+            StartCoroutine(SpawnCoinAfterDelay(position, replacementType, expiredCoinRespawnDelay));
+        }
+        private IEnumerator SpawnCoinAfterDelay(Vector2 position, CoinType type, float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            if (spawnRoutine == null) yield break; // level already ended in the meantime
+            SpawnCoinAt(position, type);
         }
         // Coin finished being collected/expired/force-released: hand it back to the pool instead of destroying it,
         // which avoids DOTween trying to touch a destroyed RectTransform after the level ends.
@@ -226,8 +316,12 @@ namespace TMKOC.CoinHunt
         }
         private Vector2 GetRandomPointInSpawnArea()
         {
-            Vector2 halfSize = coinSpawnArea.rect.size * 0.5f;
-            return new Vector2(UnityEngine.Random.Range(-halfSize.x, halfSize.x), UnityEngine.Random.Range(-halfSize.y, halfSize.y));
+            // Inset by half the coin's size so a spawned coin's edges stay within coinSpawnArea
+            // instead of a center placed right at the boundary clipping the coin off-screen.
+            Vector2 halfArea = coinSpawnArea.rect.size * 0.5f;
+            Vector2 halfCoin = coinSize * 0.5f;
+            Vector2 halfRange = new Vector2(Mathf.Max(0f, halfArea.x - halfCoin.x), Mathf.Max(0f, halfArea.y - halfCoin.y));
+            return new Vector2(UnityEngine.Random.Range(-halfRange.x, halfRange.x), UnityEngine.Random.Range(-halfRange.y, halfRange.y));
         }
         private IEnumerator LoadWinPanelWithDelay(float delay)
         {
