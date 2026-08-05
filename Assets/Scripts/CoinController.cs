@@ -146,7 +146,6 @@ namespace TMKOC.CoinHunt
             PlayCollectAnimation(targetPosition, () =>
             {
                 GameManager.Instance.UIManager?.BouncePlayerPiggyBank();
-                GameManager.Instance.LevelManager?.OnTargetCollected();
             });
         }
 
@@ -171,7 +170,6 @@ namespace TMKOC.CoinHunt
             PlayCollectAnimation(targetPosition, () =>
             {
                 GameManager.Instance.UIManager?.BounceJethalalPiggyBank();
-                GameManager.Instance.LevelManager?.OnTargetCollected();
             });
             return true;
         }

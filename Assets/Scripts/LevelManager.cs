@@ -28,12 +28,20 @@ namespace TMKOC.CoinHunt
         [SerializeField] private float minCoinSpacing = 240f;
         [SerializeField] private int maxSpawnPositionAttempts = 10;
         [SerializeField] private float expiredCoinRespawnDelay = 0.4f;
+
+        [Header("Target Rotation")]
+        // How long a coin type stays as the indicator's target before rotating to a different one.
+        [SerializeField] private float targetActiveDuration = 10f;
+        // Safety-net poll rate for catching a target type that's completely absent from screen
+        // (separate from the scheduled rotation above — this reacts faster to a bad state).
         [SerializeField] private float targetPresenceCheckInterval = 1f;
+
         private bool isStoryPlayed;
         private readonly List<GameObject> activeCoins = new List<GameObject>();
         private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
         private Coroutine targetWatchdogRoutine;
+        private Coroutine targetRotationRoutine;
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
         public CoinType CurrentTargetType { get; private set; }
@@ -80,6 +88,7 @@ namespace TMKOC.CoinHunt
         {
             CurrentTargetType = GetRandomCoinType();
             UpdateTargetIndicator();
+            ScheduleNextRotation();
             spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
             targetWatchdogRoutine = StartCoroutine(TargetPresenceWatchdog());
         }
@@ -89,6 +98,8 @@ namespace TMKOC.CoinHunt
             spawnRoutine = null;
             if (targetWatchdogRoutine != null) StopCoroutine(targetWatchdogRoutine);
             targetWatchdogRoutine = null;
+            if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
+            targetRotationRoutine = null;
 
             foreach (GameObject coin in activeCoins.ToArray())
             {
@@ -117,15 +128,21 @@ namespace TMKOC.CoinHunt
             CoinController chosen = targetCoins[UnityEngine.Random.Range(0, targetCoins.Count)];
             return chosen.TryJethalalCollect();
         }
-        // Called by CoinController once a target-type coin's collect animation finishes, so the indicator
-        // rotates to a different currency.
-        public void OnTargetCollected()
+        // Target no longer rotates on every collection — it stays put for targetActiveDuration and only
+        // changes early if it disappears from screen entirely (see HandleCoinExpired / TargetPresenceWatchdog).
+        private IEnumerator RotateAfterDelay(float delay)
         {
+            yield return new WaitForSeconds(delay);
             RetargetToPresentType();
         }
-        // Safety net: if the current target's last coin expires (rather than gets collected), or the initial
-        // random pick at level start doesn't match anything spawned yet, nothing else would ever re-check —
-        // so poll periodically and retarget the instant the current target is no longer on screen at all.
+        private void ScheduleNextRotation()
+        {
+            if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
+            targetRotationRoutine = StartCoroutine(RotateAfterDelay(targetActiveDuration));
+        }
+        // Safety net: if the current target's last coin expires, or the initial random pick at level start
+        // doesn't match anything spawned yet, nothing else would ever re-check — so poll periodically and
+        // retarget the instant the current target is no longer on screen at all.
         private IEnumerator TargetPresenceWatchdog()
         {
             while (true)
@@ -146,7 +163,8 @@ namespace TMKOC.CoinHunt
         }
         // Picks a new target type, preferring one actually present among activeCoins right now so the
         // indicator never points at a currency that isn't on screen. Falls back to any different random
-        // type only when nothing else is currently spawned at all.
+        // type only when nothing else is currently spawned at all. Also restarts the rotation timer, so
+        // an early forced change (coin disappeared) doesn't get immediately followed by the scheduled one.
         private void RetargetToPresentType()
         {
             List<CoinType> presentTypes = new List<CoinType>();
@@ -163,6 +181,7 @@ namespace TMKOC.CoinHunt
                 : GetRandomCoinType(CurrentTargetType);
 
             UpdateTargetIndicator();
+            ScheduleNextRotation();
         }
         private void UpdateTargetIndicator()
         {
