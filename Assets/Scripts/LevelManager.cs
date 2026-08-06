@@ -1,4 +1,4 @@
-using StorySystem.Story;
+using StorySystem.Story.CoinHunt;
 using System;
 using System.Collections;
 using System.Collections.Generic;

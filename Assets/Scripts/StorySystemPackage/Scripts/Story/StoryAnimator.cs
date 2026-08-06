@@ -1,8 +1,8 @@
 using System.Collections;
 using UnityEngine;
-using StorySystem.Data;
+using StorySystem.Data.CoinHunt;
 
-namespace StorySystem.Story
+namespace StorySystem.Story.CoinHunt
 {
     /// <summary>Slide-in and slide-out transitions: Fade, Slide, Scale, Instant.</summary>
     public class StoryAnimator : MonoBehaviour

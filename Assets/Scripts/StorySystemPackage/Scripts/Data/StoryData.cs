@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace StorySystem.Data
+namespace StorySystem.Data.CoinHunt
 {
     public enum SlideTransitionType { FadeIn, FadeOut, SlideFromRight, SlideFromLeft, ScaleUp, Instant }
 

@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using StorySystem.Data;
+using StorySystem.Data.CoinHunt;
 using TMKOC.CoinHunt;
 
-namespace StorySystem.Story
+namespace StorySystem.Story.CoinHunt
 {
     public class StoryController : MonoBehaviour
     {
@@ -64,17 +64,17 @@ namespace StorySystem.Story
                 {
                     dur = 3;
                 }
-                yield return new WaitForSeconds(dur);
+                yield return new WaitForSeconds(dur+0.5f);
                 if (_isSkipped) break;
                 storyAnimator?.AnimateSlideOut(slide.transitionOut);
-                yield return new WaitForSeconds(0.35f);
+                yield return new WaitForSeconds(0.5f);
                 _slideIndex++;
             }
             Finish();
         }
         private void Finish()
-        {        
+        {
             OnStoryFinished?.Invoke();
-        }       
+        }
     }
 }

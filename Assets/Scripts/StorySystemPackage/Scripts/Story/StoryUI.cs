@@ -1,9 +1,9 @@
-using StorySystem.Data;
+using StorySystem.Data.CoinHunt;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
-namespace StorySystem.Story
+namespace StorySystem.Story.CoinHunt
 {
     /// <summary>Updates Canvas elements per slide. Background, foreground, caption.</summary>
     public class StoryUI : MonoBehaviour
