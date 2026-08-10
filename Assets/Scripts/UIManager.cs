@@ -94,6 +94,14 @@ namespace TMKOC.CoinHunt
             targetIndicatorImage.transform.DOPunchScale(Vector3.one * 0.2f, 0.3f, vibrato: 1, elasticity: 0.6f);
         }
 
+        // Called by CoinController when the player taps a wrong coin, as a reminder of what to look for.
+        public void ShakeTargetIndicator()
+        {
+            if (targetIndicatorImage == null) return;
+            targetIndicatorImage.transform.DOKill();
+            targetIndicatorImage.transform.DOShakePosition(0.3f, 12f, vibrato: 10, randomness: 90, fadeOut: true);
+        }
+
         // Called by CoinController once a collected coin's fly-to animation finishes arriving at the piggy bank.
         public void BouncePlayerPiggyBank() => BouncePiggyBank(playerPiggyBank);
         public void BounceJethalalPiggyBank() => BouncePiggyBank(jethalalPiggyBank);

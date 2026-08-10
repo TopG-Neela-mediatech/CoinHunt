@@ -196,7 +196,8 @@ namespace TMKOC.CoinHunt
 
             transform.DOKill();
             transform.DOShakePosition(shakeDuration, shakeStrength, vibrato: 10, randomness: 90, fadeOut: true);
-         
+
+            GameManager.Instance.UIManager?.ShakeTargetIndicator();
         }
 
         private void PlaySfx(AudioClip clip)

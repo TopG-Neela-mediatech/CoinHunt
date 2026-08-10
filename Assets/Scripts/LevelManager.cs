@@ -21,26 +21,22 @@ namespace TMKOC.CoinHunt
         [SerializeField] private Transform coinParent;
         [SerializeField] private Vector2 spawnIntervalRange = new Vector2(0.6f, 1.2f);
         [SerializeField] private int maxActiveCoins = 5;
-        [SerializeField, Range(0f, 1f)] private float rupeeSpawnChance = 0.35f;
-        // Coin prefab's on-screen size, used both to keep spawn positions fully inside coinSpawnArea
-        // and as the basis for minCoinSpacing below (must exceed this or coins will visually overlap).
+        // Coin prefab's on-screen size — keeps spawn positions inside coinSpawnArea and is the
+        // basis for minCoinSpacing below (must exceed this or coins will visually overlap).
         [SerializeField] private Vector2 coinSize = new Vector2(200f, 200f);
         [SerializeField] private float minCoinSpacing = 240f;
-        [SerializeField] private int maxSpawnPositionAttempts = 10;
         [SerializeField] private float expiredCoinRespawnDelay = 0.4f;
+        // How many random positions to try before giving up on spawning this tick (board's just full).
+        private const int MaxSpawnPositionAttempts = 10;
 
         [Header("Target Rotation")]
         // How long a coin type stays as the indicator's target before rotating to a different one.
         [SerializeField] private float targetActiveDuration = 10f;
-        // Safety-net poll rate for catching a target type that's completely absent from screen
-        // (separate from the scheduled rotation above — this reacts faster to a bad state).
-        [SerializeField] private float targetPresenceCheckInterval = 1f;
 
         private bool isStoryPlayed;
         private readonly List<GameObject> activeCoins = new List<GameObject>();
         private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
-        private Coroutine targetWatchdogRoutine;
         private Coroutine targetRotationRoutine;
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
@@ -53,7 +49,7 @@ namespace TMKOC.CoinHunt
             public Sprite sprite;
         }
 
-        private void StartLevel() => GameManager.Instance.InvokeLevelStart();
+        public void StartLevel() => GameManager.Instance.InvokeLevelStart();
 
 
         private void Awake()
@@ -65,11 +61,20 @@ namespace TMKOC.CoinHunt
             isStoryPlayed = false;
             GameManager.Instance.OnLevelStart += OnLevelStart;
             GameManager.Instance.OnLevelWin += OnLevelWin;
-            if (sc != null)
+            StartCoroutine(StartLevelNextFrame());
+           /* if (sc != null)
             {
                 sc.OnStoryFinished += OnStoryFinished;
             }
-            StartStory();
+            StartStory();*/
+        }
+        private IEnumerator StartLevelNextFrame()
+        {
+            // Unity doesn't guarantee Start() order across scripts — wait a frame so UIManager and
+            // JethalalController have already subscribed to OnLevelStart before it fires, otherwise
+            // things like the timer silently never start.
+            yield return null;
+            StartLevel();
         }
         private void StartStory()
         {
@@ -86,18 +91,15 @@ namespace TMKOC.CoinHunt
         }
         private void OnLevelStart()
         {
-            CurrentTargetType = GetRandomCoinType();
+            CurrentTargetType = CoinType.Rupee;
             UpdateTargetIndicator();
             ScheduleNextRotation();
             spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
-            targetWatchdogRoutine = StartCoroutine(TargetPresenceWatchdog());
         }
         private void OnLevelWin()
         {
             if (spawnRoutine != null) StopCoroutine(spawnRoutine);
             spawnRoutine = null;
-            if (targetWatchdogRoutine != null) StopCoroutine(targetWatchdogRoutine);
-            targetWatchdogRoutine = null;
             if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
             targetRotationRoutine = null;
 
@@ -128,8 +130,8 @@ namespace TMKOC.CoinHunt
             CoinController chosen = targetCoins[UnityEngine.Random.Range(0, targetCoins.Count)];
             return chosen.TryJethalalCollect();
         }
-        // Target no longer rotates on every collection — it stays put for targetActiveDuration and only
-        // changes early if it disappears from screen entirely (see HandleCoinExpired / TargetPresenceWatchdog).
+        // Target rotates purely on this fixed timer now — no more collection- or absence-triggered
+        // early changes, which were causing it to rotate far more often than targetActiveDuration.
         private IEnumerator RotateAfterDelay(float delay)
         {
             yield return new WaitForSeconds(delay);
@@ -140,31 +142,9 @@ namespace TMKOC.CoinHunt
             if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
             targetRotationRoutine = StartCoroutine(RotateAfterDelay(targetActiveDuration));
         }
-        // Safety net: if the current target's last coin expires, or the initial random pick at level start
-        // doesn't match anything spawned yet, nothing else would ever re-check — so poll periodically and
-        // retarget the instant the current target is no longer on screen at all.
-        private IEnumerator TargetPresenceWatchdog()
-        {
-            while (true)
-            {
-                yield return new WaitForSeconds(targetPresenceCheckInterval);
-                if (!IsTargetTypePresent()) RetargetToPresentType();
-            }
-        }
-        private bool IsTargetTypePresent()
-        {
-            foreach (GameObject coin in activeCoins)
-            {
-                if (coin == null) continue;
-                CoinController controller = coin.GetComponent<CoinController>();
-                if (controller != null && controller.CoinType == CurrentTargetType) return true;
-            }
-            return false;
-        }
         // Picks a new target type, preferring one actually present among activeCoins right now so the
-        // indicator never points at a currency that isn't on screen. Falls back to any different random
-        // type only when nothing else is currently spawned at all. Also restarts the rotation timer, so
-        // an early forced change (coin disappeared) doesn't get immediately followed by the scheduled one.
+        // indicator points at something visible when possible. Falls back to any different random
+        // type when nothing else is currently spawned. Restarts the rotation timer for the new target.
         private void RetargetToPresentType()
         {
             List<CoinType> presentTypes = new List<CoinType>();
@@ -211,31 +191,51 @@ namespace TMKOC.CoinHunt
         private void SpawnCoin()
         {
             if (!TryGetSpawnPosition(out Vector2 position)) return;
-            SpawnCoinAt(position, GetRandomCoinType());
+            SpawnCoinAt(position, GetSpawnTypeGuaranteeingTarget());
         }
-        // A stale coin expired: replace it at the same spot with a different type so the board stays full.
-        // Note: the expired coin removes itself from activeCoins via HandleCoinReleased once its despawn animation finishes.
+        // A stale coin expired: replace it at the same spot so the board stays full.
+        // Note: the coin stays in activeCoins (still occupying its spot for overlap purposes) until
+        // HandleCoinReleased fires once its despawn animation actually finishes — see that method.
         private void HandleCoinExpired(CoinController expiredCoin)
         {
             Vector2 position = expiredCoin.GetComponent<RectTransform>().anchoredPosition;
-            CoinType replacementType = GetRandomCoinType(expiredCoin.CoinType);
-            bool wasLastTargetCoin = expiredCoin.CoinType == CurrentTargetType;
-
-            activeCoins.Remove(expiredCoin.gameObject);
-
-            // Don't leave the indicator pointing at a currency that just timed out with none left on screen —
-            // retarget immediately instead of waiting on the watchdog's next tick.
-            if (wasLastTargetCoin && !IsTargetTypePresent()) RetargetToPresentType();
+            CoinType expiredType = expiredCoin.CoinType;
 
             // Wait a beat instead of spawning the replacement the instant the old coin starts its despawn
             // animation, so the new one doesn't pop in right on top of the one still shrinking away.
-            StartCoroutine(SpawnCoinAfterDelay(position, replacementType, expiredCoinRespawnDelay));
+            StartCoroutine(SpawnCoinAfterDelay(position, expiredType, expiredCoinRespawnDelay));
         }
-        private IEnumerator SpawnCoinAfterDelay(Vector2 position, CoinType type, float delay)
+        private IEnumerator SpawnCoinAfterDelay(Vector2 position, CoinType expiredType, float delay)
         {
             yield return new WaitForSeconds(delay);
             if (spawnRoutine == null) yield break; // level already ended in the meantime
-            SpawnCoinAt(position, type);
+            // The periodic SpawnCoinsRoutine may have already refilled the gap this coin left behind
+            // by the time this delay elapses — without this check the two paths compound over a
+            // session and the board slowly overshoots maxActiveCoins.
+            if (activeCoins.Count >= maxActiveCoins) yield break;
+            // Another coin may have since spawned near the vacated spot — fall back to a freshly
+            // validated position instead of forcing an overlap at the stale stored one.
+            if (!IsPositionClear(position) && !TryGetSpawnPosition(out position)) yield break;
+            SpawnCoinAt(position, GetSpawnTypeGuaranteeingTarget(expiredType));
+        }
+        // Picks the type for a new/replacement coin. If the current target type has completely
+        // disappeared from the board, force it — so the player is never stuck waiting on a random
+        // chance for the coin they actually need to reappear. Otherwise pick randomly (excluding the
+        // type that just left this spot, if any, so the same currency doesn't just reappear in place).
+        private CoinType GetSpawnTypeGuaranteeingTarget(CoinType? excludeType = null)
+        {
+            if (!IsTargetTypePresent()) return CurrentTargetType;
+            return excludeType.HasValue ? GetRandomCoinType(excludeType.Value) : GetRandomCoinType();
+        }
+        private bool IsTargetTypePresent()
+        {
+            foreach (GameObject coin in activeCoins)
+            {
+                if (coin == null) continue;
+                CoinController controller = coin.GetComponent<CoinController>();
+                if (controller != null && controller.CoinType == CurrentTargetType) return true;
+            }
+            return false;
         }
         // Coin finished being collected/expired/force-released: hand it back to the pool instead of destroying it,
         // which avoids DOTween trying to touch a destroyed RectTransform after the level ends.
@@ -283,12 +283,13 @@ namespace TMKOC.CoinHunt
             newController.OnReleased += HandleCoinReleased;
             return newCoin;
         }
+        private static readonly CoinType[] AllCoinTypes =
+        {
+            CoinType.Rupee, CoinType.Dollar, CoinType.Euro, CoinType.Pound, CoinType.Yen
+        };
         private CoinType GetRandomCoinType()
         {
-            if (UnityEngine.Random.value < rupeeSpawnChance) return CoinType.Rupee;
-
-            CoinType[] nonRupeeTypes = { CoinType.Dollar, CoinType.Euro, CoinType.Pound, CoinType.Yen };
-            return nonRupeeTypes[UnityEngine.Random.Range(0, nonRupeeTypes.Length)];
+            return AllCoinTypes[UnityEngine.Random.Range(0, AllCoinTypes.Length)];
         }
         private CoinType GetRandomCoinType(CoinType excludeType)
         {
@@ -308,10 +309,10 @@ namespace TMKOC.CoinHunt
             return null;
         }
         // Picks a random point in the spawn area that isn't within minCoinSpacing of an existing coin.
-        // Returns false if no clear spot was found within maxSpawnPositionAttempts (board is too full right now).
+        // Returns false if no clear spot was found within MaxSpawnPositionAttempts (board is too full right now).
         private bool TryGetSpawnPosition(out Vector2 position)
         {
-            for (int attempt = 0; attempt < maxSpawnPositionAttempts; attempt++)
+            for (int attempt = 0; attempt < MaxSpawnPositionAttempts; attempt++)
             {
                 Vector2 candidate = GetRandomPointInSpawnArea();
                 if (IsPositionClear(candidate))
