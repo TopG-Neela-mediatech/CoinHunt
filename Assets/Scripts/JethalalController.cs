@@ -18,6 +18,12 @@ namespace TMKOC.CoinHunt
 
         private Coroutine collectRoutine;
         private bool isCollecting;
+        private bool isPaused;
+
+        // Used by TutorialController to stop Jethalal from sniping the guaranteed coin mid-tutorial,
+        // without tearing down and restarting the whole collect coroutine.
+        public void PauseCollecting() => isPaused = true;
+        public void ResumeCollecting() => isPaused = false;
 
         private void Start()
         {
@@ -51,6 +57,7 @@ namespace TMKOC.CoinHunt
             {
                 yield return new WaitForSeconds(Random.Range(collectIntervalRange.x, collectIntervalRange.y));
                 if (!isCollecting) yield break;
+                if (isPaused) continue;
 
                 if (GameManager.Instance.LevelManager == null)
                 {

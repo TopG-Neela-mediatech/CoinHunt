@@ -34,6 +34,7 @@ namespace TMKOC.CoinHunt
         [SerializeField] private float targetActiveDuration = 10f;
 
         private bool isStoryPlayed;
+        private bool spawningPaused;
         private readonly List<GameObject> activeCoins = new List<GameObject>();
         private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
@@ -41,6 +42,31 @@ namespace TMKOC.CoinHunt
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
         public CoinType CurrentTargetType { get; private set; }
+
+        // Used by TutorialController to freeze the board (no new spawns) while the one-time tutorial plays.
+        public void PauseSpawning() => spawningPaused = true;
+        public void ResumeSpawning() => spawningPaused = false;
+
+        // Used by TutorialController so the target can't rotate out from under the coin it's demonstrating —
+        // without this, a slow tutorial tap would leave the highlighted coin permanently failing
+        // IsTargetType() once the 10s timer fired, making it impossible to ever collect.
+        public void PauseTargetRotation()
+        {
+            if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
+            targetRotationRoutine = null;
+        }
+        public void ResumeTargetRotation() => ScheduleNextRotation();
+
+        // Lets other scripts (TutorialController) inspect what's currently on screen without exposing the list itself.
+        public IEnumerable<CoinController> GetActiveCoinControllers()
+        {
+            foreach (GameObject coin in activeCoins)
+            {
+                if (coin == null) continue;
+                CoinController controller = coin.GetComponent<CoinController>();
+                if (controller != null) yield return controller;
+            }
+        }
 
         [Serializable]
         private struct CoinSpriteMapping
@@ -183,7 +209,7 @@ namespace TMKOC.CoinHunt
             {
                 activeCoins.RemoveAll(coin => coin == null);
 
-                if (activeCoins.Count < maxActiveCoins) SpawnCoin();
+                if (!spawningPaused && activeCoins.Count < maxActiveCoins) SpawnCoin();
 
                 yield return new WaitForSeconds(UnityEngine.Random.Range(spawnIntervalRange.x, spawnIntervalRange.y));
             }
@@ -208,7 +234,7 @@ namespace TMKOC.CoinHunt
         private IEnumerator SpawnCoinAfterDelay(Vector2 position, CoinType expiredType, float delay)
         {
             yield return new WaitForSeconds(delay);
-            if (spawnRoutine == null) yield break; // level already ended in the meantime
+            if (spawnRoutine == null || spawningPaused) yield break; // level ended, or board is frozen (e.g. tutorial)
             // The periodic SpawnCoinsRoutine may have already refilled the gap this coin left behind
             // by the time this delay elapses — without this check the two paths compound over a
             // session and the board slowly overshoots maxActiveCoins.

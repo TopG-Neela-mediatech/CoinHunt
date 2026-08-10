@@ -33,6 +33,8 @@ namespace TMKOC.CoinHunt
         private CoinType coinType;
         private bool isConsumed;
         private Coroutine lifetimeRoutine;
+        private float lifetimeRemaining;
+        private bool lifetimePaused;
         private float jethalalEligibleAt;
         private Tween glowStopTween;
 
@@ -69,13 +71,23 @@ namespace TMKOC.CoinHunt
 
             jethalalEligibleAt = Time.time + jethalalGraceDuration;
 
+            lifetimeRemaining = lifetimeDuration;
+            lifetimePaused = false;
             if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
             lifetimeRoutine = StartCoroutine(LifetimeRoutine());
         }
 
+        // Used by TutorialController to freeze despawning while a coin is being demonstrated/held for the player.
+        public void PauseLifetime() => lifetimePaused = true;
+        public void ResumeLifetime() => lifetimePaused = false;
+
         private IEnumerator LifetimeRoutine()
         {
-            yield return new WaitForSeconds(lifetimeDuration);
+            while (lifetimeRemaining > 0f)
+            {
+                if (!lifetimePaused) lifetimeRemaining -= Time.deltaTime;
+                yield return null;
+            }
             Expire();
         }
 
@@ -112,6 +124,12 @@ namespace TMKOC.CoinHunt
         {
             transform.localScale = Vector3.zero;
             transform.DOScale(1f, spawnDuration).SetEase(Ease.OutBack, 0.7f);
+        }
+
+        // Used by TutorialController to freeze every coin except the one it's demonstrating on.
+        public void SetInteractable(bool interactable)
+        {
+            if (!isConsumed) coinButton.interactable = interactable;
         }
 
         private bool IsTargetType()

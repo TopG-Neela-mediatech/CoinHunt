@@ -71,6 +71,10 @@ namespace TMKOC.CoinHunt
             UpdateTimerText();
         }
 
+        // Used by TutorialController to freeze the countdown while the one-time tutorial plays.
+        public void PauseTimer() => timerRunning = false;
+        public void ResumeTimer() => timerRunning = true;
+
         public void AddPlayerScore(int amount)
         {
             playerScore += amount;
