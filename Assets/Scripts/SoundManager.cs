@@ -9,12 +9,23 @@ namespace TMKOC.CoinHunt
         [SerializeField] private AudioMapper audioMapper;
         [SerializeField] private AudioSource sfxSource;
         [SerializeField] private SFXData[] sfxData;
+        private bool playOnce;
 
 
+        private void Start()
+        {
+            playOnce = false;
+        }
         public void PlayIntro()
         {
-            float delay = RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.Intro);
-            DOVirtual.DelayedCall(delay,()=>PlayCurrencyIntro(CoinType.Rupee));
+            if (!playOnce)
+            {
+                playOnce = true;
+                float delay = RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.Intro);
+                DOVirtual.DelayedCall(delay, () => PlayCurrencyIntro(CoinType.Rupee));
+                return;
+            }
+            PlayCurrencyIntro(CoinType.Rupee);
         }
         public float PlayCurrencyIntro(CoinType c)
         {

@@ -12,7 +12,8 @@ namespace TMKOC.CoinHunt
     {
         [Header("References")]
         [SerializeField] private Button coinButton;
-        [SerializeField] private Image coinImage;     
+        [SerializeField] private Image coinImage;
+        [SerializeField] private ParticleImage correctEffect;
        // [SerializeField] private AudioSource audioSource;
 
        /* [Header("Audio")]
@@ -155,6 +156,7 @@ namespace TMKOC.CoinHunt
             if (GameManager.Instance.UIManager == null)
                 Debug.LogWarning("CoinController: GameManager's UIManager reference is not assigned — score will not update.");
             GameManager.Instance.UIManager?.AddPlayerScore(1);
+            correctEffect.Play();
            GameManager.Instance.SoundManager.PlaySFX(sfxEnum.Correct);
             GameManager.Instance.SoundManager.PlayCorrect();
             GameManager.Instance.JethalalController?.ReactToPlayerScore();
