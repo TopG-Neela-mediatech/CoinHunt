@@ -40,6 +40,10 @@ namespace TMKOC.CoinHunt
 
         private void StartCollecting()
         {
+            // Guard against OnLevelStart somehow firing more than once for a single level — without
+            // this, a second call would leave two CollectRoutine coroutines running in parallel.
+            if (collectRoutine != null) StopCoroutine(collectRoutine);
+
             isCollecting = true;
             collectRoutine = StartCoroutine(CollectRoutine());
         }

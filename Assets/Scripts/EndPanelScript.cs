@@ -32,6 +32,7 @@ namespace TMKOC.CoinHunt
 
         private RectTransform activePanel;
         private Button activeButton;
+        private Action onActiveButtonClicked;
 
         private void Awake()
         {
@@ -58,11 +59,11 @@ namespace TMKOC.CoinHunt
         // Public API
         public void ShowWin()
         {
-            Show(winPanel, nextButton); 
+            Show(winPanel, nextButton);
           //  Sprite winSprite = GameManager.Instance.LevelManager.CurrentLevelData.winPanelSprite;
            // winChrachterImage.sprite = winSprite;
-            nextButton.onClick.AddListener(()=>GameManager.Instance.LevelManager.StartLevel());
-            RotateRaysLoop(winRaysT, 8f, true);          
+            onActiveButtonClicked = () => GameManager.Instance.LevelManager.StartLevel();
+            RotateRaysLoop(winRaysT, 8f, true);
         }
 
         public void ShowLose()
@@ -70,7 +71,7 @@ namespace TMKOC.CoinHunt
             Show(losePanel, retryButton);
            /* Sprite loseSprite = GameManager.Instance.LevelManager.CurrentLevelData.losePanelSprite;
             loseChrachterImage.sprite = loseSprite;*/
-            retryButton.onClick.AddListener(() => GameManager.Instance.LevelManager.StartLevel());
+            onActiveButtonClicked = () => GameManager.Instance.LevelManager.StartLevel();
             RotateRaysLoop(loseRaysT, 8f, false);
         }
 
@@ -96,6 +97,9 @@ namespace TMKOC.CoinHunt
         }
         private void RotateRaysLoop(RectTransform rays, float duration = 8f, bool clockwise = true)
         {
+            // Without this kill, every ShowWin/ShowLose call stacked another infinite rotation
+            // tween on top of whatever was already spinning from a previous playthrough.
+            rays.DOKill();
             float angle = clockwise ? -360f : 360f;
             rays.DORotate(new Vector3(0f, 0f, angle), duration, RotateMode.FastBeyond360)
                 .SetEase(Ease.Linear)
@@ -110,6 +114,14 @@ namespace TMKOC.CoinHunt
             activePanel.DOAnchorPos(OffScreenPos(activePanel), slideOutDuration)
                 .SetEase(slideOutEase)
                 .OnComplete(() => activePanel.gameObject.SetActive(false));
+
+            // Set (not added-to) fresh by ShowWin/ShowLose each time, so this always runs exactly
+            // once per click — the old AddListener-every-time approach stacked a duplicate call to
+            // LevelManager.StartLevel() on every replay, which fired OnLevelStart multiple times per
+            // click and left multiple JethalalController.CollectRoutine() coroutines running in
+            // parallel — that compounding was the "AI getting harder every restart" bug.
+            onActiveButtonClicked?.Invoke();
+            onActiveButtonClicked = null;
         }
     }
 }

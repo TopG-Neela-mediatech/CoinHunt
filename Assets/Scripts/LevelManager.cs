@@ -121,6 +121,9 @@ namespace TMKOC.CoinHunt
             GameManager.Instance.SoundManager.PlayIntro();
             UpdateTargetIndicator();
             ScheduleNextRotation();
+            // Guard against OnLevelStart somehow firing more than once for a single level — without
+            // this, a second call would leave two SpawnCoinsRoutine coroutines running in parallel.
+            if (spawnRoutine != null) StopCoroutine(spawnRoutine);
             spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
         }
         private void OnLevelWin()
