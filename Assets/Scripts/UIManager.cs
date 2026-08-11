@@ -123,10 +123,12 @@ namespace TMKOC.CoinHunt
             if (playerScore >= jethalalScore)
             {
                 GameManager.Instance.EndPanelScript.ShowWin();
+                GameManager.Instance.SoundManager.PlayPlayerWin();
             }
             else
             {
                 GameManager.Instance.EndPanelScript.ShowLose();
+                GameManager.Instance.SoundManager.PlayJethaWin();
             }
             GameManager.Instance.InvokeLevelWin();
         }

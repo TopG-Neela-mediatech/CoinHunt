@@ -1,3 +1,4 @@
+using DG.Tweening;
 using System;
 using UnityEngine;
 
@@ -10,18 +11,56 @@ namespace TMKOC.CoinHunt
         [SerializeField] private SFXData[] sfxData;
 
 
-        private void PlaySFXSource(AudioClip c)
+        public void PlayIntro()
         {
-            if (c != null)
+            float delay = RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.Intro);
+            DOVirtual.DelayedCall(delay,()=>PlayCurrencyIntro(CoinType.Rupee));
+        }
+        public float PlayCurrencyIntro(CoinType c)
+        {
+            return RuntimeAudioLoader.Instance.PlayRuntimeAudio(Array.Find(audioMapper.coinAudios, x => x.coinType == c).coinAudio);
+        }
+        public void PlayCorrect()
+        {
+            if (RuntimeAudioLoader.Instance._commonAudioSource.isPlaying)
             {
-                sfxSource.PlayOneShot(c);
+                return;
             }
+            else
+            {
+                int randomIndex = UnityEngine.Random.Range(0, audioMapper.correctAudios.Length);
+                RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.correctAudios[randomIndex]);
+            }
+        }
+        public void PlayInCorrect()
+        {
+            if (RuntimeAudioLoader.Instance._commonAudioSource.isPlaying)
+            {
+                return;
+            }
+            else
+            {
+                int randomIndex = UnityEngine.Random.Range(0, audioMapper.incorrectAudios.Length);
+                RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.incorrectAudios[randomIndex]);
+            }
+        }
+        public void PlayPlayerWin()
+        {
+            RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.playerWin);
+        }
+        public void PlayJethaWin()
+        {
+            RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.jethaWin);
         }
         public void PlaySFX(sfxEnum e)
         {
             AudioClip clip = Array.Find(sfxData, x => x.sfxEnum == e)?.audioClip;
             if (clip != null)
             {
+                if (sfxSource.isPlaying)
+                {
+                    sfxSource.Stop();
+                }
                 sfxSource.PlayOneShot(clip);
             }
             else

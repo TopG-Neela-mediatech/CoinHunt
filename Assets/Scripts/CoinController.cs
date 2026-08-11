@@ -156,6 +156,7 @@ namespace TMKOC.CoinHunt
                 Debug.LogWarning("CoinController: GameManager's UIManager reference is not assigned — score will not update.");
             GameManager.Instance.UIManager?.AddPlayerScore(1);
            GameManager.Instance.SoundManager.PlaySFX(sfxEnum.Correct);
+            GameManager.Instance.SoundManager.PlayCorrect();
             GameManager.Instance.JethalalController?.ReactToPlayerScore();
 
             Vector3 targetPosition = GameManager.Instance.UIManager != null && GameManager.Instance.UIManager.PlayerPiggyBank != null
@@ -192,7 +193,6 @@ namespace TMKOC.CoinHunt
             });
             return true;
         }
-
         // onArrived fires once the coin visually reaches the piggy bank — target rotation is deferred until
         // then (rather than the instant the coin is claimed) so a quick second tap of the same type mid-flight
         // isn't rejected as "wrong" by a target that already changed.
@@ -208,19 +208,14 @@ namespace TMKOC.CoinHunt
                 Release();
             });
         }
-
         private void PlayIncorrectFeedback()
         {
             //  PlaySfx(incorrectCoinClip);
             GameManager.Instance.SoundManager.PlaySFX(sfxEnum.Incorrect);
+            GameManager.Instance.SoundManager.PlayInCorrect();
             transform.DOKill();
             transform.DOShakePosition(shakeDuration, shakeStrength, vibrato: 10, randomness: 90, fadeOut: true);
             GameManager.Instance.UIManager?.ShakeTargetIndicator();
-        }
-
-        private void PlaySfx(AudioClip clip)
-        {
-           // if (audioSource != null && clip != null) audioSource.PlayOneShot(clip);
         }
     }
 }

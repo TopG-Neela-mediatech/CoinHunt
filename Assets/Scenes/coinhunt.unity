@@ -1581,9 +1581,9 @@ MonoBehaviour:
     jethaWin: jethawin
   sfxSource: {fileID: 2134458925}
   sfxData:
-  - audioClip: {fileID: 0}
+  - audioClip: {fileID: 8300000, guid: 813ea5979872fb4409b33a4aa14bf62a, type: 3}
     sfxEnum: 1
-  - audioClip: {fileID: 0}
+  - audioClip: {fileID: 8300000, guid: 0c96ddd77db01a54ca8c680e65673fda, type: 3}
     sfxEnum: 2
 --- !u!1 &885184867
 GameObject:
@@ -1829,7 +1829,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 0}
+  m_Resource: {fileID: 8300000, guid: f5257c7faa5842b48bf3b2461c46cbc6, type: 3}
   m_PlayOnAwake: 1
   m_Volume: 0.3
   m_Pitch: 1

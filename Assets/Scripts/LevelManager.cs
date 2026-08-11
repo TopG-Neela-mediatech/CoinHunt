@@ -118,6 +118,7 @@ namespace TMKOC.CoinHunt
         private void OnLevelStart()
         {
             CurrentTargetType = CoinType.Rupee;
+            GameManager.Instance.SoundManager.PlayIntro();
             UpdateTargetIndicator();
             ScheduleNextRotation();
             spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
@@ -187,6 +188,7 @@ namespace TMKOC.CoinHunt
                 : GetRandomCoinType(CurrentTargetType);
 
             UpdateTargetIndicator();
+            GameManager.Instance.SoundManager.PlayCurrencyIntro(CurrentTargetType);
             ScheduleNextRotation();
         }
         private void UpdateTargetIndicator()
