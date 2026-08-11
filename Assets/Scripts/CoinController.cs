@@ -155,6 +155,7 @@ namespace TMKOC.CoinHunt
             if (GameManager.Instance.UIManager == null)
                 Debug.LogWarning("CoinController: GameManager's UIManager reference is not assigned — score will not update.");
             GameManager.Instance.UIManager?.AddPlayerScore(1);
+           GameManager.Instance.SoundManager.PlaySFX(sfxEnum.Correct);
             GameManager.Instance.JethalalController?.ReactToPlayerScore();
 
             Vector3 targetPosition = GameManager.Instance.UIManager != null && GameManager.Instance.UIManager.PlayerPiggyBank != null
@@ -210,11 +211,10 @@ namespace TMKOC.CoinHunt
 
         private void PlayIncorrectFeedback()
         {
-          //  PlaySfx(incorrectCoinClip);
-
+            //  PlaySfx(incorrectCoinClip);
+            GameManager.Instance.SoundManager.PlaySFX(sfxEnum.Incorrect);
             transform.DOKill();
             transform.DOShakePosition(shakeDuration, shakeStrength, vibrato: 10, randomness: 90, fadeOut: true);
-
             GameManager.Instance.UIManager?.ShakeTargetIndicator();
         }
 

@@ -8,6 +8,8 @@ namespace TMKOC.CoinHunt
         [SerializeField] private LevelManager levelManager;
         [SerializeField] private UIManager uiManager;
         [SerializeField] private JethalalController jethalalController;
+        [SerializeField] private EndPanelScript endPanelScript;
+        [SerializeField] private SoundManager soundManager;
         private static GameManager instance;
 
 
@@ -15,8 +17,10 @@ namespace TMKOC.CoinHunt
         public LevelManager LevelManager { get { return levelManager; } }
         public UIManager UIManager { get { return uiManager; } }
         public JethalalController JethalalController { get { return jethalalController; } }
-     
-      
+        public EndPanelScript EndPanelScript { get { return endPanelScript; } }
+        public SoundManager SoundManager { get { return soundManager; } }
+
+
         private void Awake()
         {
             if (instance == null)

@@ -120,9 +120,14 @@ namespace TMKOC.CoinHunt
         private void EndLevel()
         {
             // Ties go to the player — there's no draw outcome, only win or lose.
-            if (playerScore >= jethalalScore) Debug.Log("Player won");
-            else Debug.Log("Player lost");
-
+            if (playerScore >= jethalalScore)
+            {
+                GameManager.Instance.EndPanelScript.ShowWin();
+            }
+            else
+            {
+                GameManager.Instance.EndPanelScript.ShowLose();
+            }
             GameManager.Instance.InvokeLevelWin();
         }
 
