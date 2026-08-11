@@ -1,0 +1,16 @@
+{
+    "items": [
+        {
+            "k": "ServerRoot",
+            "v": "\\\\NAS\\Gaming\\AssetBundlesStorage"
+        },
+        {
+            "k": "GameName",
+            "v": ""
+        },
+        {
+            "k": "AssetBundleFolder",
+            "v": ""
+        }
+    ]
+}
