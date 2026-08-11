@@ -95,7 +95,11 @@ namespace TMKOC.CoinHunt
             if (targetIndicatorImage == null) return;
             targetIndicatorImage.sprite = sprite;
             targetIndicatorImage.transform.DOKill();
-            targetIndicatorImage.transform.DOPunchScale(Vector3.one * 0.2f, 0.3f, vibrato: 1, elasticity: 0.6f);
+            //targetIndicatorImage.transform.DOPunchScale(Vector3.one * 0.2f, 0.3f, vibrato: 1, elasticity: 0.6f);
+            targetIndicatorImage.transform.DOLocalMoveY(300f, 0f).OnComplete(() =>
+            {
+                targetIndicatorImage.transform.DOLocalMoveY(0f, 0.5f).SetEase(Ease.OutBack, 0.7f);
+            });
         }
 
         // Called by CoinController when the player taps a wrong coin, as a reminder of what to look for.
