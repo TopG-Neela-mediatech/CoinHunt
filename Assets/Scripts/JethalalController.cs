@@ -1,4 +1,5 @@
 using System.Collections;
+using AssetKits.ParticleImage;
 using DG.Tweening;
 using UnityEngine;
 
@@ -15,7 +16,6 @@ namespace TMKOC.CoinHunt
         [SerializeField] private float collectPunchDuration = 0.3f;
         [SerializeField] private float surprisedPunchAngle = 8f;
         [SerializeField] private float surprisedPunchDuration = 0.25f;
-
         private Coroutine collectRoutine;
         private bool isCollecting;
         private bool isPaused;
@@ -80,7 +80,6 @@ namespace TMKOC.CoinHunt
             jethalalVisual.DOKill();
             jethalalVisual.DOPunchScale(Vector3.one * collectPunchScale, collectPunchDuration, vibrato: 1, elasticity: 0.5f);
         }
-
         public void ReactToPlayerScore()
         {
             if (jethalalVisual == null) return;

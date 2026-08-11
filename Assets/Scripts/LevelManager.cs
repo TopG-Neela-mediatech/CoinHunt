@@ -32,6 +32,8 @@ namespace TMKOC.CoinHunt
         [Header("Target Rotation")]
         // How long a coin type stays as the indicator's target before rotating to a different one.
         [SerializeField] private float targetActiveDuration = 10f;
+        // How long every active coin takes to scale out when the target changes and the board clears.
+        [SerializeField] private float boardClearDuration = 0.5f;
 
         private bool isStoryPlayed;
         private bool spawningPaused;
@@ -42,6 +44,11 @@ namespace TMKOC.CoinHunt
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
         public CoinType CurrentTargetType { get; private set; }
+
+        // True once the indicator's entrance animation (played at level start) has fully settled.
+        // TutorialController waits on this so its own hand/coin reveal doesn't visually clash with
+        // the indicator still flying in.
+        public bool IsIndicatorEntranceComplete { get; private set; }
 
         // Used by TutorialController to freeze the board (no new spawns) while the one-time tutorial plays.
         public void PauseSpawning() => spawningPaused = true;
@@ -119,12 +126,20 @@ namespace TMKOC.CoinHunt
         {
             CurrentTargetType = CoinType.Rupee;
             GameManager.Instance.SoundManager.PlayIntro();
-            UpdateTargetIndicator();
-            ScheduleNextRotation();
-            // Guard against OnLevelStart somehow firing more than once for a single level — without
-            // this, a second call would leave two SpawnCoinsRoutine coroutines running in parallel.
-            if (spawnRoutine != null) StopCoroutine(spawnRoutine);
-            spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
+            IsIndicatorEntranceComplete = false;
+            // Coin spawning (and the rotation timer) don't start until the indicator has fully
+            // settled — every level start (first time or a restart) should show the indicator
+            // animation on an empty board first, then coins pop in, not both happening at once.
+            UpdateTargetIndicator(() =>
+            {
+                IsIndicatorEntranceComplete = true;
+                // Guard against OnLevelStart somehow firing more than once for a single level —
+                // without this, a second call would leave two SpawnCoinsRoutine coroutines running
+                // in parallel.
+                if (spawnRoutine != null) StopCoroutine(spawnRoutine);
+                spawnRoutine = StartCoroutine(SpawnCoinsRoutine());
+                ScheduleNextRotation();
+            });
         }
         private void OnLevelWin()
         {
@@ -174,7 +189,8 @@ namespace TMKOC.CoinHunt
         }
         // Picks a new target type, preferring one actually present among activeCoins right now so the
         // indicator points at something visible when possible. Falls back to any different random
-        // type when nothing else is currently spawned. Restarts the rotation timer for the new target.
+        // type when nothing else is currently spawned. The actual board-clear/showcase/resume sequence
+        // runs in PlayTargetChangeTransition — this only decides WHAT the next target is.
         private void RetargetToPresentType()
         {
             List<CoinType> presentTypes = new List<CoinType>();
@@ -190,21 +206,48 @@ namespace TMKOC.CoinHunt
                 ? presentTypes[UnityEngine.Random.Range(0, presentTypes.Count)]
                 : GetRandomCoinType(CurrentTargetType);
 
-            UpdateTargetIndicator();
+            StartCoroutine(PlayTargetChangeTransition());
+        }
+        // Clears every coin currently on screen (scaled out, not instantly destroyed), waits for that
+        // to finish, then plays the indicator's "new target" showcase, and only resumes spawning once
+        // that's fully settled. The next rotation isn't scheduled until this whole sequence completes,
+        // so targetActiveDuration always measures from when the new target actually finished appearing.
+        private IEnumerator PlayTargetChangeTransition()
+        {
+            spawningPaused = true;
+
+            foreach (CoinController coin in GetActiveCoinControllers())
+            {
+                coin.PlayClearAnimation(boardClearDuration);
+            }
+
+            yield return new WaitForSeconds(boardClearDuration);
+
+            bool indicatorSettled = false;
+            UpdateTargetIndicator(() => indicatorSettled = true);
             GameManager.Instance.SoundManager.PlayCurrencyIntro(CurrentTargetType);
+
+            yield return new WaitUntil(() => indicatorSettled);
+
+            spawningPaused = false;
             ScheduleNextRotation();
         }
-        private void UpdateTargetIndicator()
+        private void UpdateTargetIndicator(Action onComplete = null)
         {
             Sprite sprite = GetSpriteFor(CurrentTargetType);
             if (sprite == null)
             {
                 Debug.LogWarning($"LevelManager: no sprite mapped for CoinType.{CurrentTargetType} — target indicator won't update.");
+                onComplete?.Invoke();
                 return;
             }
             if (GameManager.Instance.UIManager == null)
+            {
                 Debug.LogWarning("LevelManager: GameManager's UIManager reference is not assigned — target indicator will not update.");
-            GameManager.Instance.UIManager?.SetTargetIndicator(sprite);
+                onComplete?.Invoke();
+                return;
+            }
+            GameManager.Instance.UIManager.SetTargetIndicator(sprite, onComplete);
         }
       
      

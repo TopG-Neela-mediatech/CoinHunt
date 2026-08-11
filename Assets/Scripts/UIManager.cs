@@ -1,3 +1,5 @@
+using System;
+using AssetKits.ParticleImage;
 using DG.Tweening;
 using TMPro;
 using UnityEngine;
@@ -15,14 +17,19 @@ namespace TMKOC.CoinHunt
         [SerializeField] private RectTransform playerPiggyBank;
         [FormerlySerializedAs("jethalalCollectionPoint")]
         [SerializeField] private RectTransform jethalalPiggyBank;
+        [SerializeField] private ParticleImage playerPiggyConfetti;
+        [SerializeField] private ParticleImage jethalalPiggyConfetti;
+
 
         [Header("Target Indicator")]
         [SerializeField] private Image targetIndicatorImage;
-        // Y anchored-position the indicator snaps down to (toward screen center) when the target
-        // changes, before smoothly returning to its normal resting Y.
+        // Y anchored-position the indicator appears at (toward screen center) when the target
+        // changes, before settling back down into its normal resting spot.
         [SerializeField] private float indicatorCenterY = -350f;
-        [SerializeField] private float indicatorCenterScale = 1.5f;
-        [SerializeField] private float indicatorChangeMoveDuration = 1f;
+        [SerializeField] private float indicatorAppearScale = 2f;
+        [SerializeField] private float indicatorAppearDuration = 0.5f;
+        [SerializeField] private float indicatorHoldDuration = 0.5f;
+        [SerializeField] private float indicatorSettleDuration = 0.5f;
 
         [Header("Timer")]
         [SerializeField] private TextMeshProUGUI timerText;
@@ -98,6 +105,12 @@ namespace TMKOC.CoinHunt
 
             // Guard against any residual drift left over from a tween interrupted at the end of the
             // previous playthrough (e.g. a punch/move killed mid-flight) — always start a level clean.
+            // Note: the target indicator is deliberately NOT reset here — LevelManager calls
+            // SetTargetIndicator() right after this fires (same GameManager.OnLevelStart event, order
+            // not guaranteed), which already does its own DOKill()+full reset before playing the
+            // entrance animation. Resetting it here too raced with that: if this ran second, it killed
+            // the just-started animation and snapped straight to the resting state, so the entrance
+            // never appeared to play.
             if (playerPiggyBank != null)
             {
                 playerPiggyBank.DOKill();
@@ -107,12 +120,6 @@ namespace TMKOC.CoinHunt
             {
                 jethalalPiggyBank.DOKill();
                 jethalalPiggyBank.localScale = jethalalPiggyBankRestScale;
-            }
-            if (targetIndicatorRect != null)
-            {
-                targetIndicatorRect.DOKill();
-                targetIndicatorRect.anchoredPosition = targetIndicatorRestAnchoredPos;
-                targetIndicatorRect.localScale = targetIndicatorRestScale;
             }
         }
 
@@ -134,29 +141,33 @@ namespace TMKOC.CoinHunt
             PunchScore(jethalalScoreText);
         }
 
-        // Called by LevelManager whenever the coin type to look for changes: hides the image, jumps
-        // it down to indicatorCenterY at indicatorCenterScale (X untouched — only Y and scale move,
-        // and the sprite swap happens while hidden so the change itself is never visible mid-jump),
-        // reveals it, then smoothly animates both Y and scale back to normal over
-        // indicatorChangeMoveDuration. Always starts from that snapped state fresh (not "wherever it
-        // currently is"), so an interrupted previous run of this (or ShakeTargetIndicator, which
-        // shares the same RectTransform) can never leave it stuck at the wrong Y/scale for the next change.
-        public void SetTargetIndicator(Sprite sprite)
+        // Called by LevelManager whenever the coin type to look for changes: snaps to indicatorCenterY
+        // at scale 0 (X untouched), scales up to indicatorAppearScale over indicatorAppearDuration,
+        // holds there for indicatorHoldDuration, then moves down to its resting Y and back to normal
+        // scale over indicatorSettleDuration. onComplete fires once fully settled — LevelManager uses
+        // it to know when it's safe to resume spawning coins for the new target. Always starts from
+        // the snapped state fresh (not "wherever it currently is"), so an interrupted previous run of
+        // this (or ShakeTargetIndicator, which shares the same RectTransform) can never leave it stuck.
+        public void SetTargetIndicator(Sprite sprite, Action onComplete = null)
         {
-            if (targetIndicatorImage == null) return;
-            if (targetIndicatorRect == null) return;
+            if (targetIndicatorImage == null || targetIndicatorRect == null)
+            {
+                onComplete?.Invoke();
+                return;
+            }
 
             targetIndicatorRect.DOKill();
 
-            targetIndicatorImage.enabled = false;
             targetIndicatorImage.sprite = sprite;
             targetIndicatorRect.anchoredPosition = new Vector2(targetIndicatorRestAnchoredPos.x, indicatorCenterY);
-            targetIndicatorRect.localScale = targetIndicatorRestScale * indicatorCenterScale;
-            targetIndicatorImage.enabled = true;
+            targetIndicatorRect.localScale = Vector3.zero;
 
             Sequence sequence = DOTween.Sequence();
-            sequence.Join(targetIndicatorRect.DOAnchorPosY(targetIndicatorRestAnchoredPos.y, indicatorChangeMoveDuration).SetEase(Ease.OutQuad));
-            sequence.Join(targetIndicatorRect.DOScale(targetIndicatorRestScale, indicatorChangeMoveDuration).SetEase(Ease.OutQuad));
+            sequence.Append(targetIndicatorRect.DOScale(targetIndicatorRestScale * indicatorAppearScale, indicatorAppearDuration).SetEase(Ease.OutBack));
+            sequence.AppendInterval(indicatorHoldDuration);
+            sequence.Append(targetIndicatorRect.DOAnchorPosY(targetIndicatorRestAnchoredPos.y, indicatorSettleDuration).SetEase(Ease.OutQuad));
+            sequence.Join(targetIndicatorRect.DOScale(targetIndicatorRestScale, indicatorSettleDuration).SetEase(Ease.OutQuad));
+            sequence.OnComplete(() => onComplete?.Invoke());
         }
 
         // Called by CoinController when the player taps a wrong coin, as a reminder of what to look for.
@@ -170,8 +181,16 @@ namespace TMKOC.CoinHunt
         }
 
         // Called by CoinController once a collected coin's fly-to animation finishes arriving at the piggy bank.
-        public void BouncePlayerPiggyBank() => BouncePiggyBank(playerPiggyBank, playerPiggyBankRestScale);
-        public void BounceJethalalPiggyBank() => BouncePiggyBank(jethalalPiggyBank, jethalalPiggyBankRestScale);
+        public void BouncePlayerPiggyBank()
+        {
+            BouncePiggyBank(playerPiggyBank, playerPiggyBankRestScale);
+            playerPiggyConfetti.Play();
+        }
+        public void BounceJethalalPiggyBank()
+        {
+            BouncePiggyBank(jethalalPiggyBank, jethalalPiggyBankRestScale);
+            jethalalPiggyConfetti.Play();
+        }
 
         // DOPunchScale animates relative to whatever scale the object is at when it starts. If a
         // previous punch got interrupted by DOKill() mid-flight, it froze at an enlarged in-between

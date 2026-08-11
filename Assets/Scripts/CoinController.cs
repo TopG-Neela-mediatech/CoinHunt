@@ -105,6 +105,20 @@ namespace TMKOC.CoinHunt
             transform.DOScale(0f, expireDuration).SetEase(Ease.InBack).OnComplete(Release);
         }
 
+        // Used by LevelManager when the target changes: scales this coin out and releases it so the
+        // board clears for the "new target" showcase. Unlike Expire(), this doesn't fire OnExpired —
+        // the board is being cleared as a whole, not replaced coin-by-coin.
+        public void PlayClearAnimation(float duration)
+        {
+            if (isConsumed) return;
+            isConsumed = true;
+            coinButton.interactable = false;
+            if (lifetimeRoutine != null) StopCoroutine(lifetimeRoutine);
+
+            transform.DOKill();
+            transform.DOScale(0f, duration).SetEase(Ease.InBack).OnComplete(Release);
+        }
+
         // Immediately hands this coin back to the pool, skipping any in-progress animation.
         // Used when the level ends so leftover coins don't leave dangling tweens behind.
         public void ForceRelease()
@@ -184,7 +198,7 @@ namespace TMKOC.CoinHunt
             if (GameManager.Instance.UIManager == null)
                 Debug.LogWarning("CoinController: GameManager's UIManager reference is not assigned — Jethalal's score will not update.");
             GameManager.Instance.UIManager?.AddJethalalScore(1);
-
+            GameManager.Instance.SoundManager.PlaySFX(sfxEnum.jethaCollect);
             Vector3 targetPosition = GameManager.Instance.UIManager != null && GameManager.Instance.UIManager.JethalalPiggyBank != null
                 ? GameManager.Instance.UIManager.JethalalPiggyBank.position
                 : transform.position;

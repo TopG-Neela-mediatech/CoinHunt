@@ -90,7 +90,8 @@ namespace TMKOC.CoinHunt
     {
         None,
         Correct,
-        Incorrect
+        Incorrect,
+        jethaCollect
     }
     [System.Serializable]
     public class AudioMapper

@@ -19,6 +19,8 @@ namespace TMKOC.CoinHunt
         [SerializeField] private float tapPressDepth = 30f;
         [SerializeField] private float tapMoveDuration = 0.4f;
         [SerializeField] private float tapHoldDelay = 0.15f;
+        // How long the hand takes to pop in (scale 0 -> 1) once revealed alongside the coin.
+        [SerializeField] private float handRevealDuration = 0.35f;
 
         [Header("Setup")]
         // How long to keep checking for a target-type coin to appear before giving up on the tutorial.
@@ -69,8 +71,10 @@ namespace TMKOC.CoinHunt
                 yield break;
             }
 
-            // Now freeze everything: timer, Jethalal, new spawns, the target rotation, and every
-            // active coin's own despawn timer.
+            // Freeze everything the instant the coin is found — timer, Jethalal, new spawns, target
+            // rotation, and every active coin's own despawn timer. This must happen right away, not
+            // after the indicator-wait below, otherwise another coin spawns in during that ~1.5s wait
+            // (well past the normal spawn interval) before spawning actually gets paused.
             GameManager.Instance.UIManager?.PauseTimer();
             GameManager.Instance.JethalalController?.PauseCollecting();
             GameManager.Instance.LevelManager?.PauseSpawning();
@@ -80,7 +84,27 @@ namespace TMKOC.CoinHunt
             tutorialCoin = correctCoin;
             tutorialCoin.OnReleased += OnTutorialCoinCollected;
 
-            PlayHandAnimation(correctCoin);
+            // Hide the coin and hand — the target indicator's own entrance animation may still be
+            // playing at this point in level start, and revealing the tutorial on top of it looked
+            // cluttered. Both reveal together, matching pop, once it's fully settled.
+            // DOKill first: the coin's own spawn-in tween may still be running, and without killing it
+            // that tween would just overwrite this scale-0 on its very next update.
+            correctCoin.transform.DOKill();
+            correctCoin.transform.localScale = Vector3.zero;
+            if (handImage != null)
+            {
+                handImage.gameObject.SetActive(true);
+                handImage.DOKill();
+                handImage.localScale = Vector3.zero;
+            }
+
+            LevelManager levelManagerRef = GameManager.Instance.LevelManager;
+            while (levelManagerRef != null && !levelManagerRef.IsIndicatorEntranceComplete)
+            {
+                yield return null;
+            }
+
+            RevealAndPlayHandAnimation(correctCoin);
         }
 
         private CoinController FindTargetTypeCoin()
@@ -110,10 +134,13 @@ namespace TMKOC.CoinHunt
             }
         }
 
-        // Loops the hand pressing down and releasing back onto the coin until the player taps it.
-        // Assumes handImage shares the coin's parent so anchored positions line up directly.
-        private void PlayHandAnimation(CoinController coin)
+        // Reveals the coin (via its normal spawn pop) and the hand (scale 0 -> 1) together, then
+        // starts the tap loop once the hand has finished popping in. Assumes handImage shares the
+        // coin's parent so anchored positions line up directly.
+        private void RevealAndPlayHandAnimation(CoinController coin)
         {
+            coin.PlaySpawnAnimation();
+
             if (handImage == null) return;
 
             RectTransform coinRect = coin.GetComponent<RectTransform>();
@@ -129,11 +156,18 @@ namespace TMKOC.CoinHunt
             Vector2 restAnchor = coinRect.anchoredPosition - new Vector2(0f, fingertipToPivot);
             Vector2 pressAnchor = restAnchor - new Vector2(0f, tapPressDepth);
 
-            handImage.gameObject.SetActive(true);
             handImage.SetAsLastSibling(); // render above the coin instead of behind it
             handImage.DOKill();
             handImage.anchoredPosition = restAnchor;
 
+            handSequence = DOTween.Sequence();
+            handSequence.Append(handImage.DOScale(1f, handRevealDuration).SetEase(Ease.OutBack));
+            handSequence.OnComplete(() => StartTapLoop(restAnchor, pressAnchor));
+        }
+
+        // Loops the hand pressing down and releasing back onto the coin until the player taps it.
+        private void StartTapLoop(Vector2 restAnchor, Vector2 pressAnchor)
+        {
             handSequence = DOTween.Sequence();
             handSequence.Append(handImage.DOAnchorPos(pressAnchor, tapMoveDuration).SetEase(Ease.OutQuad));
             handSequence.AppendInterval(tapHoldDelay);
