@@ -6,11 +6,143 @@
         },
         {
             "k": "GameName",
-            "v": ""
+            "v": "coinhunt"
         },
         {
             "k": "AssetBundleFolder",
+            "v": "D:/UnityProjects/CoinHunt/AssetBundles"
+        },
+        {
+            "k": "ScriptList",
+            "v": "Assets/Scripts"
+        },
+        {
+            "k": "Sel_ambulanceemergency",
+            "v": "0"
+        },
+        {
+            "k": "Exp_ambulanceemergency",
+            "v": "0"
+        },
+        {
+            "k": "Sel_avoidthecold",
+            "v": "0"
+        },
+        {
+            "k": "Exp_avoidthecold",
+            "v": "0"
+        },
+        {
+            "k": "Sel_chainsum",
+            "v": "0"
+        },
+        {
+            "k": "Exp_chainsum",
+            "v": "0"
+        },
+        {
+            "k": "Sel_electronicmaze",
+            "v": "0"
+        },
+        {
+            "k": "Exp_electronicmaze",
+            "v": "0"
+        },
+        {
+            "k": "Sel_flashcards",
+            "v": "0"
+        },
+        {
+            "k": "Exp_flashcards",
+            "v": "0"
+        },
+        {
+            "k": "Sel_Phonic",
+            "v": "0"
+        },
+        {
+            "k": "Exp_Phonic",
+            "v": "0"
+        },
+        {
+            "k": "Sel_Rhymes",
+            "v": "0"
+        },
+        {
+            "k": "Exp_Rhymes",
+            "v": "0"
+        },
+        {
+            "k": "Sel_SaveTheTeddy",
+            "v": "0"
+        },
+        {
+            "k": "Exp_SaveTheTeddy",
+            "v": "0"
+        },
+        {
+            "k": "Sel_sorting",
+            "v": "0"
+        },
+        {
+            "k": "Exp_sorting",
+            "v": "0"
+        },
+        {
+            "k": "Sel_swipetocolor",
+            "v": "0"
+        },
+        {
+            "k": "Exp_swipetocolor",
+            "v": "0"
+        },
+        {
+            "k": "Sel_Tap to Color",
+            "v": "0"
+        },
+        {
+            "k": "Exp_Tap to Color",
+            "v": "0"
+        },
+        {
+            "k": "Sel_unique",
+            "v": "0"
+        },
+        {
+            "k": "Exp_unique",
+            "v": "0"
+        },
+        {
+            "k": "Sel_zombieescape",
+            "v": "0"
+        },
+        {
+            "k": "Exp_zombieescape",
+            "v": "0"
+        },
+        {
+            "k": "Sel_coinhunt",
+            "v": "0"
+        },
+        {
+            "k": "Exp_coinhunt",
+            "v": "1"
+        },
+        {
+            "k": "ABDest_coinhunt",
             "v": ""
+        },
+        {
+            "k": "PullAb_coinhunt",
+            "v": "1"
+        },
+        {
+            "k": "ScrDest_coinhunt",
+            "v": ""
+        },
+        {
+            "k": "PullScr_coinhunt",
+            "v": "1"
         }
     ]
 }
