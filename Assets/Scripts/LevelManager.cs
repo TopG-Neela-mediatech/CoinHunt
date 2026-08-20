@@ -41,6 +41,7 @@ namespace TMKOC.CoinHunt
         private readonly Queue<GameObject> coinPool = new Queue<GameObject>();
         private Coroutine spawnRoutine;
         private Coroutine targetRotationRoutine;
+        private Coroutine targetChangeTransitionRoutine;
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
         public CoinType CurrentTargetType { get; private set; }
@@ -147,6 +148,8 @@ namespace TMKOC.CoinHunt
             spawnRoutine = null;
             if (targetRotationRoutine != null) StopCoroutine(targetRotationRoutine);
             targetRotationRoutine = null;
+            if (targetChangeTransitionRoutine != null) StopCoroutine(targetChangeTransitionRoutine);
+            targetChangeTransitionRoutine = null;
 
             foreach (GameObject coin in activeCoins.ToArray())
             {
@@ -206,7 +209,11 @@ namespace TMKOC.CoinHunt
                 ? presentTypes[UnityEngine.Random.Range(0, presentTypes.Count)]
                 : GetRandomCoinType(CurrentTargetType);
 
-            StartCoroutine(PlayTargetChangeTransition());
+            // Tracked so OnLevelWin can cancel this if the level ends mid-transition — otherwise its
+            // remaining steps (including a PlayCurrencyIntro sound call) kept running after the
+            // win/lose panel appeared, stepping on the win/lose audio.
+            if (targetChangeTransitionRoutine != null) StopCoroutine(targetChangeTransitionRoutine);
+            targetChangeTransitionRoutine = StartCoroutine(PlayTargetChangeTransition());
         }
         // Clears every coin currently on screen (scaled out, not instantly destroyed), waits for that
         // to finish, then plays the indicator's "new target" showcase, and only resumes spawning once

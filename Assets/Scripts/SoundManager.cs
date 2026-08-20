@@ -57,11 +57,22 @@ namespace TMKOC.CoinHunt
         }
         public void PlayPlayerWin()
         {
+            StopAllAudio();
             RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.playerWin);
         }
         public void PlayJethaWin()
         {
+            StopAllAudio();
             RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.jethaWin);
+        }
+        // Called right before win/lose audio plays so nothing still-playing (e.g. a currency-change
+        // cue whose coroutine hadn't been cancelled yet, or a correct/incorrect SFX) bleeds through
+        // over it. PlayRuntimeAudio already stops _commonAudioSource on its own, but sfxSource is a
+        // separate source it never touches, so that needs stopping here explicitly too.
+        private void StopAllAudio()
+        {
+            if (RuntimeAudioLoader.Instance != null) RuntimeAudioLoader.Instance.StopCommonAudioSource();
+            if (sfxSource != null) sfxSource.Stop();
         }
         public void PlaySFX(sfxEnum e)
         {
