@@ -51,9 +51,19 @@ namespace TMKOC.CoinHunt
 
         private IEnumerator RunTutorial()
         {
-            // Let the board spawn normally first — don't touch spawning/timer/Jethalal until we
-            // actually have a coin to freeze on, otherwise pausing spawning up front means the
-            // very first coin (the one we're waiting for) never gets a chance to appear.
+            LevelManager levelManager = GameManager.Instance.LevelManager;
+
+            // The level's own intro (a voice clip of variable length, then the indicator's entrance
+            // animation) has to fully finish before any coin can possibly exist — wait for that here,
+            // outside findCoinTimeout below, so a longer intro clip doesn't eat into that timeout and
+            // make the tutorial give up before spawning even starts.
+            while (levelManager != null && !levelManager.IsIndicatorEntranceComplete)
+            {
+                yield return null;
+            }
+
+            // Now actually look for a coin — this should only take a moment, since the very first
+            // coin spawned is guaranteed to match the current target type.
             CoinController correctCoin = null;
             float elapsed = 0f;
             while (correctCoin == null && elapsed < findCoinTimeout)
@@ -72,9 +82,7 @@ namespace TMKOC.CoinHunt
             }
 
             // Freeze everything the instant the coin is found — timer, Jethalal, new spawns, target
-            // rotation, and every active coin's own despawn timer. This must happen right away, not
-            // after the indicator-wait below, otherwise another coin spawns in during that ~1.5s wait
-            // (well past the normal spawn interval) before spawning actually gets paused.
+            // rotation, and every active coin's own despawn timer — before another coin can spawn in.
             GameManager.Instance.UIManager?.PauseTimer();
             GameManager.Instance.JethalalController?.PauseCollecting();
             GameManager.Instance.LevelManager?.PauseSpawning();
@@ -84,9 +92,8 @@ namespace TMKOC.CoinHunt
             tutorialCoin = correctCoin;
             tutorialCoin.OnReleased += OnTutorialCoinCollected;
 
-            // Hide the coin and hand — the target indicator's own entrance animation may still be
-            // playing at this point in level start, and revealing the tutorial on top of it looked
-            // cluttered. Both reveal together, matching pop, once it's fully settled.
+            // Give the coin and hand a fresh "pop in" reveal for the tutorial's own beat, distinct
+            // from the coin's normal spawn-in that already played moments earlier.
             // DOKill first: the coin's own spawn-in tween may still be running, and without killing it
             // that tween would just overwrite this scale-0 on its very next update.
             correctCoin.transform.DOKill();
@@ -96,12 +103,6 @@ namespace TMKOC.CoinHunt
                 handImage.gameObject.SetActive(true);
                 handImage.DOKill();
                 handImage.localScale = Vector3.zero;
-            }
-
-            LevelManager levelManagerRef = GameManager.Instance.LevelManager;
-            while (levelManagerRef != null && !levelManagerRef.IsIndicatorEntranceComplete)
-            {
-                yield return null;
             }
 
             RevealAndPlayHandAnimation(correctCoin);

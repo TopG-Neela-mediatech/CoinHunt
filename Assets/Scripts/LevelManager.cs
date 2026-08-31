@@ -42,6 +42,7 @@ namespace TMKOC.CoinHunt
         private Coroutine spawnRoutine;
         private Coroutine targetRotationRoutine;
         private Coroutine targetChangeTransitionRoutine;
+        private Coroutine levelStartRoutine;
 
         // The currency the indicator currently shows — the only type that scores when tapped/grabbed.
         public CoinType CurrentTargetType { get; private set; }
@@ -126,8 +127,24 @@ namespace TMKOC.CoinHunt
         private void OnLevelStart()
         {
             CurrentTargetType = CoinType.Rupee;
-            GameManager.Instance.SoundManager.PlayIntro();
             IsIndicatorEntranceComplete = false;
+
+            // PlayIntro only actually plays (and returns a nonzero wait) the very first time ever —
+            // every restart after that returns 0 and this proceeds immediately.
+            float introDelay = GameManager.Instance.SoundManager.PlayIntro();
+            if (levelStartRoutine != null) StopCoroutine(levelStartRoutine);
+            levelStartRoutine = StartCoroutine(BeginLevelAfterIntro(introDelay));
+        }
+        // Waits out the one-time intro voice line before doing anything else — previously the
+        // currency cue and the indicator's visual entrance (and thus coin spawning) started
+        // immediately in parallel with the intro clip, so coins were already tappable while it was
+        // still playing.
+        private IEnumerator BeginLevelAfterIntro(float introDelay)
+        {
+            if (introDelay > 0f) yield return new WaitForSeconds(introDelay);
+
+            GameManager.Instance.SoundManager.PlayCurrencyIntro(CurrentTargetType);
+
             // Coin spawning (and the rotation timer) don't start until the indicator has fully
             // settled — every level start (first time or a restart) should show the indicator
             // animation on an empty board first, then coins pop in, not both happening at once.
@@ -150,6 +167,8 @@ namespace TMKOC.CoinHunt
             targetRotationRoutine = null;
             if (targetChangeTransitionRoutine != null) StopCoroutine(targetChangeTransitionRoutine);
             targetChangeTransitionRoutine = null;
+            if (levelStartRoutine != null) StopCoroutine(levelStartRoutine);
+            levelStartRoutine = null;
 
             foreach (GameObject coin in activeCoins.ToArray())
             {

@@ -1,4 +1,3 @@
-using DG.Tweening;
 using System;
 using UnityEngine;
 
@@ -16,16 +15,18 @@ namespace TMKOC.CoinHunt
         {
             playOnce = false;
         }
-        public void PlayIntro()
+        // Plays the one-time intro voice line and returns how long to wait before it's safe to start
+        // the currency cue / show the game (0 on every call after the first, since there's no intro
+        // clip to wait out then). The caller (LevelManager) is responsible for actually waiting and
+        // for playing the currency intro afterward — this used to schedule that itself via a fixed
+        // delay running in parallel with the visual entrance, which let coins spawn in and become
+        // tappable while the intro clip was still playing.
+        public float PlayIntro()
         {
-            if (!playOnce)
-            {
-                playOnce = true;
-                float delay = RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.Intro);
-                DOVirtual.DelayedCall(delay, () => PlayCurrencyIntro(CoinType.Rupee));
-                return;
-            }
-            PlayCurrencyIntro(CoinType.Rupee);
+            if (playOnce) return 0f;
+
+            playOnce = true;
+            return RuntimeAudioLoader.Instance.PlayRuntimeAudio(audioMapper.Intro);
         }
         public float PlayCurrencyIntro(CoinType c)
         {
